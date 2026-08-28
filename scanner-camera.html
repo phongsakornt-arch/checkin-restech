@@ -1,0 +1,314 @@
+<!DOCTYPE html>
+<html lang="th">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+<title>YEC Check-in Scanner</title>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/jsqr/1.4.0/jsQR.js"></script>
+<style>
+  :root{
+    --navy-deep:#050b1f; --navy:#0d1b3e; --navy-mid:#1c2f5e;
+    --gold:#d4af37; --gold-light:#f4e2a1;
+    --green:#1f8a4c; --green-bg:#e7f6ec;
+    --red:#c0392b; --red-bg:#fdecea;
+    --gray-bg:#f4f5f9; --text:#1a1a1a;
+  }
+  *{box-sizing:border-box; -webkit-tap-highlight-color:transparent;}
+  html,body{margin:0; padding:0; background:var(--navy-deep); font-family:'Segoe UI','Sarabun',Tahoma,Arial,sans-serif; color:var(--text); min-height:100vh;}
+  .app{max-width:480px; margin:0 auto; min-height:100vh; background:#fff; display:flex; flex-direction:column;}
+  header{background:linear-gradient(135deg,var(--navy-deep) 0%, var(--navy) 55%, var(--navy-mid) 100%); color:#fff; padding:18px 20px 16px;}
+  header .eyebrow{color:var(--gold); font-size:11px; letter-spacing:2px; font-weight:700; text-transform:uppercase; margin:0 0 4px;}
+  header h1{margin:0; font-size:19px; font-weight:800; line-height:1.3;}
+  .stat-row{display:flex; gap:10px; margin-top:14px;}
+  .stat{flex:1; background:rgba(255,255,255,0.08); border:1px solid rgba(212,175,55,0.35); border-radius:10px; padding:8px 10px; text-align:center;}
+  .stat .num{font-size:20px; font-weight:800; color:var(--gold);}
+  .stat .lbl{font-size:10.5px; color:#cfd6e8; margin-top:2px;}
+  .tabs{display:flex; border-bottom:1px solid #e5e5ea;}
+  .tab{flex:1; text-align:center; padding:12px 0; font-size:13.5px; font-weight:700; color:#8a8a8a; cursor:pointer; border-bottom:3px solid transparent;}
+  .tab.active{color:var(--navy); border-color:var(--gold);}
+  main{flex:1; padding:16px; padding-bottom:32px;}
+  section{display:none;}
+  section.active{display:block;}
+  .scan-box{position:relative; width:100%; aspect-ratio:1/1; background:#000; border-radius:16px; overflow:hidden; border:2px solid var(--navy);}
+  #video{width:100%; height:100%; object-fit:cover;}
+  .reticle{position:absolute; inset:14%; border:3px solid var(--gold); border-radius:16px; box-shadow:0 0 0 999px rgba(0,0,0,0.35); pointer-events:none;}
+  .cam-msg{position:absolute; inset:0; display:flex; align-items:center; justify-content:center; color:#fff; font-size:13.5px; text-align:center; padding:20px; background:rgba(5,11,31,0.85);}
+  .manual{margin-top:16px;}
+  .manual label{font-size:12.5px; font-weight:700; color:#555; display:block; margin-bottom:6px;}
+  .manual-row{display:flex; gap:8px;}
+  .manual-row input{flex:1; padding:12px 14px; border:1.5px solid #d8d2c6; border-radius:10px; font-size:15px; letter-spacing:1px; text-transform:uppercase;}
+  .manual-row button{background:var(--navy); color:var(--gold); border:none; border-radius:10px; padding:0 18px; font-weight:700; font-size:14px; cursor:pointer;}
+  .result{margin-top:16px; border-radius:14px; padding:18px; display:none;}
+  .result.show{display:block; animation:pop .18s ease-out;}
+  @keyframes pop{from{transform:scale(0.96); opacity:0.5} to{transform:scale(1); opacity:1}}
+  .result.ok{background:var(--green-bg); border:1.5px solid var(--green);}
+  .result.dup{background:#fff6e0; border:1.5px solid var(--gold);}
+  .result.err{background:var(--red-bg); border:1.5px solid var(--red);}
+  .result .tag{font-size:12px; font-weight:800; letter-spacing:0.5px; text-transform:uppercase; margin-bottom:8px;}
+  .result.ok .tag{color:var(--green);}
+  .result.dup .tag{color:#a3801a;}
+  .result.err .tag{color:var(--red);}
+  .result .rname{font-size:19px; font-weight:800; color:var(--navy);}
+  .result .rmeta{font-size:13px; color:#555; margin-top:4px; line-height:1.6;}
+  .result .rcode{font-size:12px; color:#888; margin-top:8px; font-weight:600; letter-spacing:1px;}
+  .toggle-cam{margin-top:10px; text-align:center;}
+  .toggle-cam button{background:none; border:1.5px solid var(--navy); color:var(--navy); border-radius:20px; padding:8px 18px; font-size:12.5px; font-weight:700; cursor:pointer;}
+  .list-item{display:flex; justify-content:space-between; align-items:center; padding:12px 14px; border:1px solid #eceef3; border-radius:10px; margin-bottom:8px; background:var(--gray-bg);}
+  .list-item .li-name{font-weight:700; font-size:14px; color:var(--navy);}
+  .list-item .li-meta{font-size:11.5px; color:#888; margin-top:2px;}
+  .list-item .li-time{font-size:11.5px; color:#a3801a; font-weight:700; white-space:nowrap;}
+  .empty{text-align:center; color:#999; font-size:13px; padding:40px 10px;}
+  .search-row{margin-bottom:14px;}
+  .search-row input{width:100%; padding:11px 14px; border:1.5px solid #d8d2c6; border-radius:10px; font-size:14px;}
+  .roster-item{display:flex; justify-content:space-between; align-items:center; padding:11px 14px; border-bottom:1px solid #eceef3;}
+  .roster-item .rn{font-size:13.5px; font-weight:600; color:#222;}
+  .roster-item .rc{font-size:11px; color:#999;}
+  .badge{font-size:10.5px; font-weight:800; padding:3px 9px; border-radius:12px; white-space:nowrap;}
+  .badge.in{background:var(--green-bg); color:var(--green);}
+  .badge.out{background:#f0f0f0; color:#999;}
+  footer{padding:14px 20px 22px; text-align:center; color:#aaa; font-size:10.5px;}
+  .conn-err{background:#fdecea; color:#c0392b; font-size:12px; padding:10px 14px; border-radius:8px; margin:0 16px 12px; display:none;}
+</style>
+</head>
+<body>
+<div class="app">
+  <header>
+    <p class="eyebrow">SUPER · CP · PenguinX</p>
+    <h1>YEC Check-in Scanner<br><span style="font-weight:600; font-size:13.5px; color:#cfd6e8;">Networking Night 28 ส.ค. 2569</span></h1>
+    <div class="stat-row">
+      <div class="stat"><div class="num" id="statIn">–</div><div class="lbl">เช็คอินแล้ว</div></div>
+      <div class="stat"><div class="num" id="statTotal">–</div><div class="lbl">ผู้ลงทะเบียนทั้งหมด</div></div>
+      <div class="stat"><div class="num" id="statLeft">–</div><div class="lbl">ยังไม่มา</div></div>
+    </div>
+  </header>
+
+  <div id="connErr" class="conn-err">เชื่อมต่อฐานข้อมูล (Google Sheet) ไม่ได้ — ตรวจสอบ API_BASE ในโค้ด หรือลิงก์ deploy ของ Apps Script</div>
+
+  <div class="tabs">
+    <div class="tab active" data-tab="scan">📷 สแกน</div>
+    <div class="tab" data-tab="history">🕒 ประวัติ</div>
+    <div class="tab" data-tab="roster">📋 รายชื่อ</div>
+  </div>
+
+  <main>
+    <section id="tab-scan" class="active">
+      <div class="scan-box">
+        <video id="video" playsinline muted></video>
+        <div class="reticle"></div>
+        <div class="cam-msg" id="camMsg">กำลังขอสิทธิ์ใช้กล้อง...<br>กรุณากดอนุญาตให้เข้าถึงกล้อง</div>
+      </div>
+      <div class="toggle-cam"><button id="btnCam">⏸ หยุด/เริ่มกล้อง</button></div>
+
+      <div class="manual">
+        <label>หรือกรอกรหัสเช็คอินด้วยตนเอง (เช่น YEC2026-001) — ใช้ได้กับเครื่องสแกนบาร์โค้ดภายนอกด้วย</label>
+        <div class="manual-row">
+          <input id="manualInput" placeholder="YEC2026-XXX" maxlength="20" autofocus>
+          <button id="btnManual">ยืนยัน</button>
+        </div>
+      </div>
+
+      <div class="result" id="resultCard">
+        <div class="tag" id="resultTag"></div>
+        <div class="rname" id="resultName"></div>
+        <div class="rmeta" id="resultMeta"></div>
+        <div class="rcode" id="resultCode"></div>
+      </div>
+    </section>
+
+    <section id="tab-history">
+      <div id="historyList"><div class="empty">กำลังโหลด...</div></div>
+    </section>
+
+    <section id="tab-roster">
+      <div class="search-row"><input id="rosterSearch" placeholder="ค้นหาชื่อ / ธุรกิจ / รหัส..."></div>
+      <div id="rosterList"><div class="empty">กำลังโหลด...</div></div>
+    </section>
+  </main>
+
+  <footer>Young Entrepreneur Chamber of Commerce Thailand (YEC) · ข้อมูลบันทึกตรงลง Google Sheet ทันที</footer>
+</div>
+
+<script>
+// ---- Apps Script Web App URL (already filled in with your deployment) ----
+const API_BASE = 'https://script.google.com/a/macros/thaichamber.org/s/AKfycbzXWtph0WuBDkgP-GJZukmZRjt2J7Aebc_ln-mG9xhbbfvEc4dYbjl5LrixN3Siizsy/exec';
+
+let roster = [];
+let busy = false;
+
+async function apiGetRoster(){
+  const res = await fetch(API_BASE + '?action=roster');
+  if(!res.ok) throw new Error('HTTP ' + res.status);
+  return res.json();
+}
+async function apiCheckin(code){
+  const res = await fetch(API_BASE + '?action=checkin&code=' + encodeURIComponent(code));
+  if(!res.ok) throw new Error('HTTP ' + res.status);
+  return res.json();
+}
+
+function fmtTime(ts){
+  const d = new Date(ts);
+  return d.toLocaleString('th-TH', {hour:'2-digit', minute:'2-digit', day:'2-digit', month:'2-digit', hour12:false});
+}
+
+async function refreshRoster(){
+  try{
+    roster = await apiGetRoster();
+    document.getElementById('connErr').style.display = 'none';
+  }catch(e){
+    document.getElementById('connErr').style.display = 'block';
+    return;
+  }
+  renderStats();
+  renderHistory();
+  renderRoster(document.getElementById('rosterSearch').value);
+}
+
+function renderStats(){
+  const inCount = roster.filter(r => r.checkedAt).length;
+  document.getElementById('statIn').textContent = inCount;
+  document.getElementById('statTotal').textContent = roster.length;
+  document.getElementById('statLeft').textContent = roster.length - inCount;
+}
+
+function renderHistory(){
+  const list = roster.filter(r => r.checkedAt).sort((a,b) => b.checkedAt - a.checkedAt).slice(0, 50);
+  const el = document.getElementById('historyList');
+  if(list.length === 0){ el.innerHTML = '<div class="empty">ยังไม่มีการเช็คอิน</div>'; return; }
+  el.innerHTML = list.map(r => `<div class="list-item">
+      <div>
+        <div class="li-name">${r.name} ${r.nick ? '('+r.nick+')' : ''}</div>
+        <div class="li-meta">${r.code} · ${r.biz || ''}</div>
+      </div>
+      <div class="li-time">${fmtTime(r.checkedAt)}</div>
+    </div>`).join('');
+}
+
+function renderRoster(filter){
+  const q = (filter || '').trim().toLowerCase();
+  const el = document.getElementById('rosterList');
+  const items = roster.filter(r => !q || (r.name+' '+r.nick+' '+r.biz+' '+r.code).toLowerCase().includes(q));
+  el.innerHTML = items.map(r => `<div class="roster-item">
+      <div>
+        <div class="rn">${r.name} ${r.nick ? '('+r.nick+')' : ''}</div>
+        <div class="rc">${r.code} · ${r.biz || ''}</div>
+      </div>
+      <span class="badge ${r.checkedAt ? 'in':'out'}">${r.checkedAt ? 'เช็คอินแล้ว' : 'ยังไม่มา'}</span>
+    </div>`).join('') || '<div class="empty">ไม่พบรายชื่อ</div>';
+}
+
+async function doCheckin(codeRaw){
+  if(busy) return;
+  busy = true;
+  const code = (codeRaw || '').trim().toUpperCase();
+  const resultCard = document.getElementById('resultCard');
+  const tag = document.getElementById('resultTag');
+  const name = document.getElementById('resultName');
+  const meta = document.getElementById('resultMeta');
+  const codeEl = document.getElementById('resultCode');
+
+  try{
+    const res = await apiCheckin(code);
+    if(res.status === 'notfound'){
+      resultCard.className = 'result show err';
+      tag.textContent = '❌ ไม่พบรหัสนี้ในระบบ';
+      name.textContent = code || '(ว่างเปล่า)';
+      meta.textContent = 'กรุณาตรวจสอบรหัส หรือแจ้งเจ้าหน้าที่ทีมงาน';
+      codeEl.textContent = '';
+      if(navigator.vibrate) navigator.vibrate([80,50,80]);
+    } else if(res.status === 'duplicate'){
+      resultCard.className = 'result show dup';
+      tag.textContent = '⚠️ เช็คอินซ้ำ';
+      name.textContent = res.name + (res.nick ? ' ('+res.nick+')' : '');
+      meta.textContent = `${res.biz || ''} · เช็คอินไปแล้วเมื่อ ${fmtTime(res.time)}`;
+      codeEl.textContent = code;
+      if(navigator.vibrate) navigator.vibrate(150);
+    } else {
+      resultCard.className = 'result show ok';
+      tag.textContent = '✅ เช็คอินสำเร็จ';
+      name.textContent = res.name + (res.nick ? ' ('+res.nick+')' : '');
+      meta.textContent = `${res.biz || ''} · ${res.prov || ''}`;
+      codeEl.textContent = code;
+      if(navigator.vibrate) navigator.vibrate(60);
+    }
+    await refreshRoster();
+  }catch(e){
+    resultCard.className = 'result show err';
+    tag.textContent = '❌ เชื่อมต่อไม่สำเร็จ';
+    name.textContent = 'กรุณาลองใหม่อีกครั้ง';
+    meta.textContent = String(e);
+  }
+  busy = false;
+}
+
+// ---- Camera / QR scanning ----
+let stream = null, scanning = true, lastScanCode = null, lastScanAt = 0;
+const video = document.getElementById('video');
+const camMsg = document.getElementById('camMsg');
+const canvas = document.createElement('canvas');
+const ctx = canvas.getContext('2d', {willReadFrequently:true});
+
+async function startCamera(){
+  try{
+    stream = await navigator.mediaDevices.getUserMedia({video:{facingMode:'environment'}});
+    video.srcObject = stream;
+    await video.play();
+    camMsg.style.display = 'none';
+    scanning = true;
+    requestAnimationFrame(tick);
+  }catch(e){
+    camMsg.style.display = 'flex';
+    camMsg.textContent = 'ไม่สามารถเข้าถึงกล้องได้ กรุณาใช้ช่องกรอกรหัสด้านล่างแทน';
+  }
+}
+function stopCamera(){
+  scanning = false;
+  if(stream){ stream.getTracks().forEach(t => t.stop()); stream = null; }
+}
+function tick(){
+  if(!scanning) return;
+  if(video.readyState === video.HAVE_ENOUGH_DATA){
+    canvas.width = video.videoWidth; canvas.height = video.videoHeight;
+    ctx.drawImage(video, 0, 0, canvas.width, canvas.height);
+    const imageData = ctx.getImageData(0, 0, canvas.width, canvas.height);
+    const code = jsQR(imageData.data, imageData.width, imageData.height);
+    if(code && code.data){
+      const now = Date.now();
+      if(code.data !== lastScanCode || now - lastScanAt > 2500){
+        lastScanCode = code.data; lastScanAt = now;
+        doCheckin(code.data);
+      }
+    }
+  }
+  requestAnimationFrame(tick);
+}
+
+document.getElementById('btnCam').addEventListener('click', () => {
+  if(scanning){ stopCamera(); camMsg.style.display='flex'; camMsg.textContent='กล้องหยุดชั่วคราว กดปุ่มด้านล่างเพื่อเริ่มใหม่'; }
+  else { startCamera(); }
+});
+document.getElementById('btnManual').addEventListener('click', () => {
+  const v = document.getElementById('manualInput').value;
+  if(v.trim()) doCheckin(v);
+  document.getElementById('manualInput').value = '';
+  document.getElementById('manualInput').focus();
+});
+document.getElementById('manualInput').addEventListener('keydown', (e) => {
+  if(e.key === 'Enter'){ document.getElementById('btnManual').click(); }
+});
+document.getElementById('rosterSearch').addEventListener('input', (e) => renderRoster(e.target.value));
+document.querySelectorAll('.tab').forEach(tabEl => {
+  tabEl.addEventListener('click', () => {
+    document.querySelectorAll('.tab').forEach(t => t.classList.remove('active'));
+    document.querySelectorAll('section').forEach(s => s.classList.remove('active'));
+    tabEl.classList.add('active');
+    document.getElementById('tab-' + tabEl.dataset.tab).classList.add('active');
+  });
+});
+
+refreshRoster();
+startCamera();
+setInterval(refreshRoster, 5000);
+</script>
+</body>
+</html>
