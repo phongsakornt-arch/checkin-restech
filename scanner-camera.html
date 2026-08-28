@@ -266,9 +266,21 @@ const camMsg = document.getElementById('camMsg');
 const canvas = document.createElement('canvas');
 const ctx = canvas.getContext('2d', {willReadFrequently:true});
 
+// Prefer the browser's native barcode detector (Chrome/Android) — it uses the
+// same underlying platform detector as the native camera app, and is far more
+// robust than a pure-JS decoder, especially for screen-to-screen scanning.
+// Falls back to jsQR (works everywhere, including iOS Safari) if unavailable.
+const nativeDetector = ('BarcodeDetector' in window) ? new BarcodeDetector({formats: ['qr_code']}) : null;
+
 async function startCamera(){
   try{
-    stream = await navigator.mediaDevices.getUserMedia({video:{facingMode:'environment'}});
+    stream = await navigator.mediaDevices.getUserMedia({
+      video: {
+        facingMode: {ideal: 'environment'},
+        width: {ideal: 1920},
+        height: {ideal: 1080}
+      }
+    });
     video.srcObject = stream;
     await video.play();
     camMsg.style.display = 'none';
@@ -283,18 +295,29 @@ function stopCamera(){
   scanning = false;
   if(stream){ stream.getTracks().forEach(t => t.stop()); stream = null; }
 }
-function tick(){
+
+async function tick(){
   if(!scanning) return;
   if(video.readyState === video.HAVE_ENOUGH_DATA){
-    canvas.width = video.videoWidth; canvas.height = video.videoHeight;
-    ctx.drawImage(video, 0, 0, canvas.width, canvas.height);
-    const imageData = ctx.getImageData(0, 0, canvas.width, canvas.height);
-    const code = jsQR(imageData.data, imageData.width, imageData.height);
-    if(code && code.data){
+    let codeData = null;
+    if(nativeDetector){
+      try{
+        const results = await nativeDetector.detect(video);
+        if(results && results.length) codeData = results[0].rawValue;
+      }catch(e){ /* fall through to jsQR below */ }
+    }
+    if(!codeData){
+      canvas.width = video.videoWidth; canvas.height = video.videoHeight;
+      ctx.drawImage(video, 0, 0, canvas.width, canvas.height);
+      const imageData = ctx.getImageData(0, 0, canvas.width, canvas.height);
+      const found = jsQR(imageData.data, imageData.width, imageData.height, {inversionAttempts: 'attemptBoth'});
+      if(found && found.data) codeData = found.data;
+    }
+    if(codeData){
       const now = Date.now();
-      if(code.data !== lastScanCode || now - lastScanAt > 2500){
-        lastScanCode = code.data; lastScanAt = now;
-        doCheckin(code.data);
+      if(codeData !== lastScanCode || now - lastScanAt > 2500){
+        lastScanCode = codeData; lastScanAt = now;
+        doCheckin(codeData);
       }
     }
   }
