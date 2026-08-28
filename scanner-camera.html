@@ -136,14 +136,32 @@ let roster = [];
 let busy = false;
 
 async function apiGetRoster(){
-  const res = await fetch(API_BASE + '?action=roster');
-  if(!res.ok) throw new Error('HTTP ' + res.status);
-  return res.json();
+  return jsonpRequest(API_BASE + '?action=roster');
 }
 async function apiCheckin(code){
-  const res = await fetch(API_BASE + '?action=checkin&code=' + encodeURIComponent(code));
-  if(!res.ok) throw new Error('HTTP ' + res.status);
-  return res.json();
+  return jsonpRequest(API_BASE + '?action=checkin&code=' + encodeURIComponent(code));
+}
+
+// JSONP loader: Apps Script doesn't send Access-Control-Allow-Origin, so a plain
+// cross-origin fetch() gets blocked by the browser even though the endpoint itself
+// works fine. A <script src="..."> tag isn't subject to that restriction, so we
+// load the response as a script that calls back into a temporary global function.
+let _jsonpCounter = 0;
+function jsonpRequest(url){
+  return new Promise((resolve, reject) => {
+    const cbName = 'yecCb_' + (_jsonpCounter++) + '_' + Date.now();
+    const script = document.createElement('script');
+    const timeoutId = setTimeout(() => { cleanup(); reject(new Error('timeout')); }, 12000);
+    function cleanup(){
+      delete window[cbName];
+      if(script.parentNode) script.parentNode.removeChild(script);
+      clearTimeout(timeoutId);
+    }
+    window[cbName] = function(data){ cleanup(); resolve(data); };
+    script.onerror = function(){ cleanup(); reject(new Error('script load error')); };
+    script.src = url + (url.indexOf('?') >= 0 ? '&' : '?') + 'callback=' + cbName;
+    document.body.appendChild(script);
+  });
 }
 
 function fmtTime(ts){
