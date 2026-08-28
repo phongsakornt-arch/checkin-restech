@@ -350,6 +350,17 @@ document.querySelectorAll('.tab').forEach(tabEl => {
 refreshRoster();
 startCamera();
 setInterval(refreshRoster, 5000);
+
+// Auto check-in: if this page was opened via a QR deep link (?code=...) —
+// e.g. a guest's own camera app scanned the QR and opened this page — check
+// that code in immediately without requiring any camera use in-page at all.
+(function autoCheckinFromUrl(){
+  const params = new URLSearchParams(window.location.search);
+  const codeParam = params.get('code');
+  if(codeParam){
+    doCheckin(codeParam);
+  }
+})();
 </script>
 </body>
 </html>
