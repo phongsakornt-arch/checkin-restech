@@ -3,13 +3,12 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-<title>YEC Check-in Scanner</title>
-<script src="https://cdnjs.cloudflare.com/ajax/libs/jsqr/1.4.0/jsQR.js"></script>
+<title>YEC Check-in</title>
 <style>
   :root{
     --navy-deep:#050b1f; --navy:#0d1b3e; --navy-mid:#1c2f5e;
     --gold:#d4af37; --gold-light:#f4e2a1;
-    --green:#1f8a4c; --green-bg:#e7f6ec;
+    --green:#1f8a4c; --green-bg:#e7f6ec; --green-strong:#189950;
     --red:#c0392b; --red-bg:#fdecea;
     --gray-bg:#f4f5f9; --text:#1a1a1a;
   }
@@ -29,30 +28,32 @@
   main{flex:1; padding:16px; padding-bottom:32px;}
   section{display:none;}
   section.active{display:block;}
-  .scan-box{position:relative; width:100%; aspect-ratio:1/1; background:#000; border-radius:16px; overflow:hidden; border:2px solid var(--navy);}
-  #video{width:100%; height:100%; object-fit:cover;}
-  .reticle{position:absolute; inset:14%; border:3px solid var(--gold); border-radius:16px; box-shadow:0 0 0 999px rgba(0,0,0,0.35); pointer-events:none;}
-  .cam-msg{position:absolute; inset:0; display:flex; align-items:center; justify-content:center; color:#fff; font-size:13.5px; text-align:center; padding:20px; background:rgba(5,11,31,0.85);}
-  .manual{margin-top:16px;}
+  .conn-err{background:#fdecea; color:#c0392b; font-size:12px; padding:10px 14px; border-radius:8px; margin:0 16px 12px; display:none;}
+
+  /* ---- Idle placeholder ---- */
+  .idle-box{border:2px dashed #d8d2c6; border-radius:16px; padding:40px 20px; text-align:center; color:#999;}
+  .idle-box .big-icon{font-size:44px; margin-bottom:10px; opacity:0.5;}
+  .idle-box p{margin:0; font-size:13.5px; line-height:1.7;}
+
+  /* ---- Result — big & unmistakable ---- */
+  .result{border-radius:20px; padding:28px 22px; text-align:center; display:none;}
+  .result.show{display:block; animation:pop .22s ease-out;}
+  @keyframes pop{from{transform:scale(0.92); opacity:0} to{transform:scale(1); opacity:1}}
+  .result.ok{background:var(--green-strong); box-shadow:0 8px 28px rgba(24,153,80,0.35);}
+  .result.dup{background:#c98d12; box-shadow:0 8px 28px rgba(201,141,18,0.35);}
+  .result.err{background:var(--red); box-shadow:0 8px 28px rgba(192,57,43,0.35);}
+  .result .icon{font-size:56px; line-height:1; margin-bottom:6px;}
+  .result .tag{font-size:14px; font-weight:800; letter-spacing:0.5px; text-transform:uppercase; color:rgba(255,255,255,0.85); margin-bottom:10px;}
+  .result .rname{font-size:26px; font-weight:800; color:#ffffff; line-height:1.3;}
+  .result .rmeta{font-size:14.5px; color:rgba(255,255,255,0.9); margin-top:8px; line-height:1.6;}
+  .result .rcode{font-size:12.5px; color:rgba(255,255,255,0.7); margin-top:14px; font-weight:700; letter-spacing:1.5px;}
+
+  .manual{margin-top:20px;}
   .manual label{font-size:12.5px; font-weight:700; color:#555; display:block; margin-bottom:6px;}
   .manual-row{display:flex; gap:8px;}
-  .manual-row input{flex:1; padding:12px 14px; border:1.5px solid #d8d2c6; border-radius:10px; font-size:15px; letter-spacing:1px; text-transform:uppercase;}
-  .manual-row button{background:var(--navy); color:var(--gold); border:none; border-radius:10px; padding:0 18px; font-weight:700; font-size:14px; cursor:pointer;}
-  .result{margin-top:16px; border-radius:14px; padding:18px; display:none;}
-  .result.show{display:block; animation:pop .18s ease-out;}
-  @keyframes pop{from{transform:scale(0.96); opacity:0.5} to{transform:scale(1); opacity:1}}
-  .result.ok{background:var(--green-bg); border:1.5px solid var(--green);}
-  .result.dup{background:#fff6e0; border:1.5px solid var(--gold);}
-  .result.err{background:var(--red-bg); border:1.5px solid var(--red);}
-  .result .tag{font-size:12px; font-weight:800; letter-spacing:0.5px; text-transform:uppercase; margin-bottom:8px;}
-  .result.ok .tag{color:var(--green);}
-  .result.dup .tag{color:#a3801a;}
-  .result.err .tag{color:var(--red);}
-  .result .rname{font-size:19px; font-weight:800; color:var(--navy);}
-  .result .rmeta{font-size:13px; color:#555; margin-top:4px; line-height:1.6;}
-  .result .rcode{font-size:12px; color:#888; margin-top:8px; font-weight:600; letter-spacing:1px;}
-  .toggle-cam{margin-top:10px; text-align:center;}
-  .toggle-cam button{background:none; border:1.5px solid var(--navy); color:var(--navy); border-radius:20px; padding:8px 18px; font-size:12.5px; font-weight:700; cursor:pointer;}
+  .manual-row input{flex:1; padding:14px; border:1.5px solid #d8d2c6; border-radius:10px; font-size:16px; letter-spacing:1px; text-transform:uppercase;}
+  .manual-row button{background:var(--navy); color:var(--gold); border:none; border-radius:10px; padding:0 20px; font-weight:700; font-size:14px; cursor:pointer;}
+
   .list-item{display:flex; justify-content:space-between; align-items:center; padding:12px 14px; border:1px solid #eceef3; border-radius:10px; margin-bottom:8px; background:var(--gray-bg);}
   .list-item .li-name{font-weight:700; font-size:14px; color:var(--navy);}
   .list-item .li-meta{font-size:11.5px; color:#888; margin-top:2px;}
@@ -67,14 +68,13 @@
   .badge.in{background:var(--green-bg); color:var(--green);}
   .badge.out{background:#f0f0f0; color:#999;}
   footer{padding:14px 20px 22px; text-align:center; color:#aaa; font-size:10.5px;}
-  .conn-err{background:#fdecea; color:#c0392b; font-size:12px; padding:10px 14px; border-radius:8px; margin:0 16px 12px; display:none;}
 </style>
 </head>
 <body>
 <div class="app">
   <header>
     <p class="eyebrow">SUPER · CP · PenguinX</p>
-    <h1>YEC Check-in Scanner<br><span style="font-weight:600; font-size:13.5px; color:#cfd6e8;">Networking Night 28 ส.ค. 2569</span></h1>
+    <h1>YEC Check-in<br><span style="font-weight:600; font-size:13.5px; color:#cfd6e8;">Networking Night 28 ส.ค. 2569</span></h1>
     <div class="stat-row">
       <div class="stat"><div class="num" id="statIn">–</div><div class="lbl">เช็คอินแล้ว</div></div>
       <div class="stat"><div class="num" id="statTotal">–</div><div class="lbl">ผู้ลงทะเบียนทั้งหมด</div></div>
@@ -85,33 +85,32 @@
   <div id="connErr" class="conn-err">เชื่อมต่อฐานข้อมูล (Google Sheet) ไม่ได้ — ตรวจสอบ API_BASE ในโค้ด หรือลิงก์ deploy ของ Apps Script</div>
 
   <div class="tabs">
-    <div class="tab active" data-tab="scan">📷 สแกน</div>
+    <div class="tab active" data-tab="checkin">✅ เช็คอิน</div>
     <div class="tab" data-tab="history">🕒 ประวัติ</div>
     <div class="tab" data-tab="roster">📋 รายชื่อ</div>
   </div>
 
   <main>
-    <section id="tab-scan" class="active">
-      <div class="scan-box">
-        <video id="video" playsinline muted></video>
-        <div class="reticle"></div>
-        <div class="cam-msg" id="camMsg">กำลังขอสิทธิ์ใช้กล้อง...<br>กรุณากดอนุญาตให้เข้าถึงกล้อง</div>
-      </div>
-      <div class="toggle-cam"><button id="btnCam">⏸ หยุด/เริ่มกล้อง</button></div>
-
-      <div class="manual">
-        <label>หรือกรอกรหัสเช็คอินด้วยตนเอง (เช่น YEC2026-001) — ใช้ได้กับเครื่องสแกนบาร์โค้ดภายนอกด้วย</label>
-        <div class="manual-row">
-          <input id="manualInput" placeholder="YEC2026-XXX" maxlength="20" autofocus>
-          <button id="btnManual">ยืนยัน</button>
-        </div>
+    <section id="tab-checkin" class="active">
+      <div class="idle-box" id="idleBox">
+        <div class="big-icon">📎</div>
+        <p>ให้แขกเปิด QR Code จากอีเมล แล้วใช้กล้องมือถือของท่าน (แอปกล้องปกติ) ส่องแล้วกดเปิดลิงก์<br>หรือกรอกรหัสด้วยตนเองด้านล่าง</p>
       </div>
 
       <div class="result" id="resultCard">
+        <div class="icon" id="resultIcon"></div>
         <div class="tag" id="resultTag"></div>
         <div class="rname" id="resultName"></div>
         <div class="rmeta" id="resultMeta"></div>
         <div class="rcode" id="resultCode"></div>
+      </div>
+
+      <div class="manual">
+        <label>กรอกรหัสเช็คอิน (เช่น YEC2026-001) — ใช้ได้กับเครื่องสแกนบาร์โค้ดภายนอกด้วย</label>
+        <div class="manual-row">
+          <input id="manualInput" placeholder="YEC2026-XXX" maxlength="20" autofocus>
+          <button id="btnManual">ยืนยัน</button>
+        </div>
       </div>
     </section>
 
@@ -129,23 +128,15 @@
 </div>
 
 <script>
-// ---- Apps Script Web App URL (already filled in with your deployment) ----
+// ---- Apps Script Web App URL ----
 const API_BASE = 'https://script.google.com/macros/s/AKfycbwchrdaFnX0xpIc-5qgqQ523sonbotJpUyPHwN2QKOTk9pMqB8ZNHLsAGYV9yLzuaWf/exec';
 
 let roster = [];
 let busy = false;
 
-async function apiGetRoster(){
-  return jsonpRequest(API_BASE + '?action=roster');
-}
-async function apiCheckin(code){
-  return jsonpRequest(API_BASE + '?action=checkin&code=' + encodeURIComponent(code));
-}
+async function apiGetRoster(){ return jsonpRequest(API_BASE + '?action=roster'); }
+async function apiCheckin(code){ return jsonpRequest(API_BASE + '?action=checkin&code=' + encodeURIComponent(code)); }
 
-// JSONP loader: Apps Script doesn't send Access-Control-Allow-Origin, so a plain
-// cross-origin fetch() gets blocked by the browser even though the endpoint itself
-// works fine. A <script src="..."> tag isn't subject to that restriction, so we
-// load the response as a script that calls back into a temporary global function.
 let _jsonpCounter = 0;
 function jsonpRequest(url){
   return new Promise((resolve, reject) => {
@@ -218,8 +209,10 @@ function renderRoster(filter){
 async function doCheckin(codeRaw){
   if(busy) return;
   busy = true;
+  document.getElementById('idleBox').style.display = 'none';
   const code = (codeRaw || '').trim().toUpperCase();
   const resultCard = document.getElementById('resultCard');
+  const icon = document.getElementById('resultIcon');
   const tag = document.getElementById('resultTag');
   const name = document.getElementById('resultName');
   const meta = document.getElementById('resultMeta');
@@ -229,21 +222,24 @@ async function doCheckin(codeRaw){
     const res = await apiCheckin(code);
     if(res.status === 'notfound'){
       resultCard.className = 'result show err';
-      tag.textContent = '❌ ไม่พบรหัสนี้ในระบบ';
+      icon.textContent = '❌';
+      tag.textContent = 'ไม่พบรหัสนี้ในระบบ';
       name.textContent = code || '(ว่างเปล่า)';
       meta.textContent = 'กรุณาตรวจสอบรหัส หรือแจ้งเจ้าหน้าที่ทีมงาน';
       codeEl.textContent = '';
       if(navigator.vibrate) navigator.vibrate([80,50,80]);
     } else if(res.status === 'duplicate'){
       resultCard.className = 'result show dup';
-      tag.textContent = '⚠️ เช็คอินซ้ำ';
+      icon.textContent = '⚠️';
+      tag.textContent = 'เช็คอินซ้ำ';
       name.textContent = res.name + (res.nick ? ' ('+res.nick+')' : '');
       meta.textContent = `${res.biz || ''} · เช็คอินไปแล้วเมื่อ ${fmtTime(res.time)}`;
       codeEl.textContent = code;
       if(navigator.vibrate) navigator.vibrate(150);
     } else {
       resultCard.className = 'result show ok';
-      tag.textContent = '✅ เช็คอินสำเร็จ';
+      icon.textContent = '✅';
+      tag.textContent = 'เช็คอินสำเร็จ';
       name.textContent = res.name + (res.nick ? ' ('+res.nick+')' : '');
       meta.textContent = `${res.biz || ''} · ${res.prov || ''}`;
       codeEl.textContent = code;
@@ -252,82 +248,14 @@ async function doCheckin(codeRaw){
     await refreshRoster();
   }catch(e){
     resultCard.className = 'result show err';
-    tag.textContent = '❌ เชื่อมต่อไม่สำเร็จ';
+    icon.textContent = '❌';
+    tag.textContent = 'เชื่อมต่อไม่สำเร็จ';
     name.textContent = 'กรุณาลองใหม่อีกครั้ง';
     meta.textContent = String(e);
   }
   busy = false;
 }
 
-// ---- Camera / QR scanning ----
-let stream = null, scanning = true, lastScanCode = null, lastScanAt = 0;
-const video = document.getElementById('video');
-const camMsg = document.getElementById('camMsg');
-const canvas = document.createElement('canvas');
-const ctx = canvas.getContext('2d', {willReadFrequently:true});
-
-// Prefer the browser's native barcode detector (Chrome/Android) — it uses the
-// same underlying platform detector as the native camera app, and is far more
-// robust than a pure-JS decoder, especially for screen-to-screen scanning.
-// Falls back to jsQR (works everywhere, including iOS Safari) if unavailable.
-const nativeDetector = ('BarcodeDetector' in window) ? new BarcodeDetector({formats: ['qr_code']}) : null;
-
-async function startCamera(){
-  try{
-    stream = await navigator.mediaDevices.getUserMedia({
-      video: {
-        facingMode: {ideal: 'environment'},
-        width: {ideal: 1920},
-        height: {ideal: 1080}
-      }
-    });
-    video.srcObject = stream;
-    await video.play();
-    camMsg.style.display = 'none';
-    scanning = true;
-    requestAnimationFrame(tick);
-  }catch(e){
-    camMsg.style.display = 'flex';
-    camMsg.textContent = 'ไม่สามารถเข้าถึงกล้องได้ กรุณาใช้ช่องกรอกรหัสด้านล่างแทน';
-  }
-}
-function stopCamera(){
-  scanning = false;
-  if(stream){ stream.getTracks().forEach(t => t.stop()); stream = null; }
-}
-
-async function tick(){
-  if(!scanning) return;
-  if(video.readyState === video.HAVE_ENOUGH_DATA){
-    let codeData = null;
-    if(nativeDetector){
-      try{
-        const results = await nativeDetector.detect(video);
-        if(results && results.length) codeData = results[0].rawValue;
-      }catch(e){ /* fall through to jsQR below */ }
-    }
-    if(!codeData){
-      canvas.width = video.videoWidth; canvas.height = video.videoHeight;
-      ctx.drawImage(video, 0, 0, canvas.width, canvas.height);
-      const imageData = ctx.getImageData(0, 0, canvas.width, canvas.height);
-      const found = jsQR(imageData.data, imageData.width, imageData.height, {inversionAttempts: 'attemptBoth'});
-      if(found && found.data) codeData = found.data;
-    }
-    if(codeData){
-      const now = Date.now();
-      if(codeData !== lastScanCode || now - lastScanAt > 2500){
-        lastScanCode = codeData; lastScanAt = now;
-        doCheckin(codeData);
-      }
-    }
-  }
-  requestAnimationFrame(tick);
-}
-
-document.getElementById('btnCam').addEventListener('click', () => {
-  if(scanning){ stopCamera(); camMsg.style.display='flex'; camMsg.textContent='กล้องหยุดชั่วคราว กดปุ่มด้านล่างเพื่อเริ่มใหม่'; }
-  else { startCamera(); }
-});
 document.getElementById('btnManual').addEventListener('click', () => {
   const v = document.getElementById('manualInput').value;
   if(v.trim()) doCheckin(v);
@@ -348,18 +276,15 @@ document.querySelectorAll('.tab').forEach(tabEl => {
 });
 
 refreshRoster();
-startCamera();
 setInterval(refreshRoster, 5000);
 
-// Auto check-in: if this page was opened via a QR deep link (?code=...) —
-// e.g. a guest's own camera app scanned the QR and opened this page — check
-// that code in immediately without requiring any camera use in-page at all.
+// Auto check-in: if opened via a QR deep link (?code=...) — e.g. a guest's or
+// staff's own camera app scanned the QR and opened this page — check that
+// code in immediately, no camera or manual step needed.
 (function autoCheckinFromUrl(){
   const params = new URLSearchParams(window.location.search);
   const codeParam = params.get('code');
-  if(codeParam){
-    doCheckin(codeParam);
-  }
+  if(codeParam) doCheckin(codeParam);
 })();
 </script>
 </body>
